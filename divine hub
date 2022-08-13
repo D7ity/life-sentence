@@ -1,0 +1,396 @@
+--// Exploit Check \\--
+if #{firetouchinterest, fireproximityprompt, hookmetamethod, setupvalue, getgc} ~= 5 then
+    while true do
+    end
+end
+
+--// Exploit Fix \\--
+if not pcall(function() return syn.protect_gui end) then
+    syn = {}
+    syn.protect_gui = function(A_1)
+        A_1.Parent = game:GetService("CoreGui")
+    end
+end
+
+--// Services \\--
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+local GroupService = game:GetService("GroupService") 
+local RunService = game:GetService("RunService")
+
+--// Variables \\--
+local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
+local Camera = Workspace.CurrentCamera
+local Rocks = Workspace:WaitForChild("MiningRocks")
+local Robbable = Workspace:WaitForChild("Robbable")
+local TP_Part = Workspace:WaitForChild("SecurityStuffIDK"):WaitForChild("TeleBackPart")
+local LootSpawns = Workspace:WaitForChild("LootSpawns")
+local PlayerStats = ReplicatedStorage:WaitForChild("PlayerStats")
+local Local_PlayerStats = PlayerStats:WaitForChild(Player.Name)
+
+--// Anti-Mod \\--
+local PlaceInfo = MarketplaceService:GetProductInfo(game.PlaceId)
+local Group_ID = PlaceInfo.Creator.CreatorTargetId
+local Roles = GroupService:GetGroupInfoAsync(Group_ID).Roles
+local Ranks = {}
+Ranks.Guest = 0
+for Name, Rank in next, Roles do
+    Ranks[Name] = Rank
+end
+function ModCheck(A_1)
+    if Ranks[A_1:GetRoleInGroup(Group_ID)] > 2 then 
+        Player:Kick("Mod " .. A_1.Name .. " joined your game.")
+    end
+end
+
+--// Get Functions \\--
+local AddStamina;
+local RegWalkStuff;
+function UpdateFuncs()
+    local Scr = Player:FindFirstChild("CombatMain", true)
+    if Scr then
+        for _, A_1 in next, getgc() do
+            if type(A_1) == "function" and getfenv(A_1).script == Scr then
+                local Name = getinfo(A_1).name
+                if Name == "AddStamina" then
+                    AddStamina = A_1
+                elseif Name == "RegWalkStuff" then
+                    RegWalkStuff = A_1
+                end
+            end
+        end
+    end
+end
+
+--// TP Bypass \\--
+local Pass = Player:WaitForChild("Backpack"):WaitForChild("Stats"):WaitForChild("TeleportPass")
+local OldIndex = nil
+OldIndex = hookmetamethod(game, "__index", function(Self, Key)
+    if not checkcaller() and Self == Pass and Key == "Value" then
+        return true
+    end
+    return OldIndex(Self, Key)
+end)
+
+
+--// Libraries \\--
+local ESP = loadstring(game:HttpGet("https://kiriot22.com/releases/ESP.lua"))()
+ESP:Toggle(true)
+ESP.Players = false
+ESP.AutoRemove = false
+ESP.Rob = false
+local Library = loadstring(game:HttpGetAsync('https://raw.githubusercontent.com/Just-Egg-Salad/roblox-scripts/main/uwuware'))()
+local Window = Library:CreateWindow("Helper by Ezpi#0474")
+
+--// ESP Color \\--
+ESP.Overrides.GetColor = function(A_1)
+    local A_2 = ESP:GetPlrFromChar(A_1)
+    if A_2 then
+        local A_3 = PlayerStats:FindFirstChild(A_2.Name)
+        local A_4 = A_2:FindFirstChild("Bounty", true)
+        if A_3 and A_3:FindFirstChild("Cop") and A_3.Cop.Value == true then
+            return Color3.new(0.2, 0.2, 1)
+        elseif A_4 and A_4.Value > 0 then
+            return Color3.new(1, 0.2, 0.2)
+        end
+    end
+    return Color3.new(1, 1, 1)
+end
+
+--// Get Target \\--
+function GetTarget()
+    -- Variables
+    local Distance = Library.flags.Range + 0.1
+    local Closest = false
+    local Cop = Local_PlayerStats.Cop.Value
+    -- Go Through Players
+    for _, A_1 in next, Players:GetPlayers() do
+        local Char = A_1.Character
+        -- Player Check
+        if Char and A_1 ~= Player and Char:FindFirstChild("Head") and Char:FindFirstChild("Humanoid") and Char.Humanoid.Health > 0 and not Char:FindFirstChild("ForceField") then
+            -- Team Check
+            local Data = PlayerStats:FindFirstChild(A_1.Name)
+            if Data and Data:FindFirstChild("Cop") and (Cop == false or Data.Cop.Value == false) then
+                -- Distance Check
+                local New_Distance = Player:DistanceFromCharacter(Char.Head.Position)
+                if New_Distance < Distance then
+                    Distance = New_Distance
+                    Closest = Char.Head
+                end
+            end
+        end
+    end
+    return Closest
+end
+
+--// Get SilentAim Target \\--
+function SilentAimTarget()
+    local Closest = false
+    local Distance = math.huge
+    local MousePos = Vector2.new(Mouse.X, Mouse.Y)
+    for _, A_1 in next, Players.GetPlayers(Players) do
+        local Char = A_1.Character
+        local Hum = Char and Char.FindFirstChild(Char, "Humanoid")
+        if A_1 ~= Player and Hum and Hum.Health > 0 and Char.FindFirstChild(Char, "HumanoidRootPart") and not Char.FindFirstChild(Char, "ForceField") then
+            local vector, onScreen = Camera.WorldToScreenPoint(Camera, Char.HumanoidRootPart.Position)
+            if onScreen then
+                local NewDistance = (MousePos - Vector2.new(vector.X, vector.Y)).Magnitude
+                if NewDistance < Distance then
+                    Distance = NewDistance
+                    Closest = Char.HumanoidRootPart.Position
+                end
+            end
+        end
+    end
+    return Closest
+end
+
+--// Touch Func \\--
+function Touch(A_1, A_2)
+    pcall(function()
+        firetouchinterest(A_1, A_2, 0)
+        firetouchinterest(A_1, A_2, 1)
+    end)
+end
+
+--// UI Library \\--
+Window:AddToggle({
+    text = "Attack-Aura",
+    flag = "Attack",
+    callback = function()
+        while Library.flags.Attack == true and wait() do
+            local Target = GetTarget()
+            local Tool = Player.Character and Player.Character:FindFirstChildOfClass("Tool")
+            if Target and Tool and Tool:FindFirstChild("Damage") and Tool.Damage.Value > 0 then
+                Tool:Activate()
+                Touch(Tool.Handle, Target)
+            end
+        end
+    end
+})
+Window:AddToggle({
+    text = "SilentAim"
+})
+Window:AddToggle({
+    text = "Auto-Arrest",
+    flag = "Arrest",
+    callback = function()
+        while Library.flags.Arrest == true and wait() do
+            if Player.Character and Player.Character:FindFirstChild("Handcuffs") then
+                for _, A_1 in next, Players:GetPlayers() do
+                    local Char = A_1.Character
+                    if Char and A_1 ~= Player and A_1:FindFirstChild("leaderstats") and A_1.leaderstats:FindFirstChild("Bounty") and A_1.leaderstats.Bounty.Value > 0 then
+                        local Prox = Char:FindFirstChild("ArrestPrompt", true)
+                        if Prox and Player:DistanceFromCharacter(Prox.Parent.Position) < Prox.MaxActivationDistance then
+                            fireproximityprompt(Prox)
+                        end
+                    end
+                end
+            end
+        end
+    end
+})
+Window:AddToggle({
+    text = "Collect Dropped Cash",
+    flag = "Cash",
+    callback = function()
+        while Library.flags.Cash == true and wait() do
+            for _, A_1 in next, Workspace:GetChildren() do
+                local Prompt = A_1:FindFirstChildOfClass("ProximityPrompt")
+                if Prompt and A_1.Name == "DroppedCash" and Player:DistanceFromCharacter(A_1.Position) < Prompt.MaxActivationDistance then
+                    fireproximityprompt(Prompt)
+                end
+            end
+        end
+    end
+})
+Window:AddSlider({
+    text = "Attack-Range",
+    flag = "Range",
+    min = 2,
+    max = 18,
+    float = 0.25
+})
+local ESP_Folder = Window:AddFolder("ESP Settings")
+ESP_Folder:AddToggle({
+    text = "Players",
+    callback = function(A_1)
+        ESP.Players = A_1
+    end
+})
+ESP_Folder:AddToggle({
+    text = "Robbable",
+    flag = "Rob"
+})
+ESP_Folder:AddToggle({
+    text = "Items/Scrap",
+    flag = "Scrap"
+})
+local Misc = Window:AddFolder("Misc")
+Misc:AddToggle({
+    text = "Auto-Dumbell",
+    flag = "Dumbell"
+})
+Misc:AddToggle({
+    text = "Inf. Energy",
+    flag = "Energy",
+    callback = function(A_1)
+        -- Check
+        local Amount = math.huge
+        if A_1 == false then
+            Amount = 100
+        end
+        -- Set
+        setupvalue(AddStamina, 1, Amount)
+    end
+})
+Misc:AddToggle({
+    text = "Inf. Consumable",
+    flag = "Consume"
+})
+Misc:AddToggle({
+    text = "Anti-Mod",
+    flag = "Mod",
+    callbcak = function(A_1)
+        -- Check
+        if A_1 == false then
+            return
+        end
+        -- Mod Check
+        for _, A_1 in next, Players:GetPlayers() do
+            ModCheck(A_1)
+        end
+    end
+})
+Misc:AddBind({
+    text = "Teleport Forwards",
+    callback = function()
+        Player.Character.HumanoidRootPart.CFrame *= CFrame.new(0, 0, -5)
+    end
+})
+local Teleports = Window:AddFolder("Teleports")
+for _, A_1 in next, Workspace:WaitForChild("Buttons"):GetChildren() do
+    local Name = A_1:FindFirstChild("ToolName")
+    local Button = A_1:FindFirstChild("Button")
+    if Name and Button then
+        Teleports:AddButton({
+            text = Name.Value,
+            callback = function()
+                -- Check
+                local Primary = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") or false
+                if Primary == false then
+                    return
+                end
+                -- Teleport
+                Primary.CFrame = CFrame.new(Button.Position) + Vector3.new(0, 3, 0)
+            end
+        })
+    end
+end
+Library:Init()
+
+--// Rob ESP \\--
+for _, A_1 in next, Robbable:GetChildren() do
+    local Prompt = A_1:FindFirstChildWhichIsA("ProximityPrompt", true)
+    ESP:Add(A_1, {
+        Name = A_1.Name,
+        PrimaryPart = A_1.PrimaryPart or A_1:FindFirstChild("HumanoidRootPart"),
+        IsEnabled = function()
+            return Prompt.Enabled == true and Library.flags.Rob == true
+        end,
+        Color = Color3.fromRGB(66, 233, 255)
+    })
+end
+
+--// Item ESP \\--
+local Scrap = {"Gear", "Blade", "Spring"}
+for _, A_1 in next, LootSpawns:GetChildren() do
+    local Prompt = A_1:WaitForChild("Part"):WaitForChild("Attachment"):WaitForChild("ProximityPrompt")
+    ESP:Add(A_1, {
+        Name = "Item/Scrap",
+        PrimaryPart = A_1.PrimaryPart or A_1:FindFirstChild("Part"),
+        IsEnabled = function(A_2)
+            if Prompt.Enabled == true and Library.flags.Scrap == true then
+                -- Get Item Name
+                local New_Name = "Item/Scrap"
+                for _, A_3 in next, Scrap do
+                    if A_1[A_3].Transparency == 0 then
+                        New_Name = A_3
+                    end
+                end
+                ESP:GetBox(A_1).Name = New_Name
+                return true
+            end
+            return false
+        end,
+        Color = Color3.new(0.3, 1, 0.3)
+    })
+end
+
+--// Anti-Mod \\--
+Players.PlayerAdded:Connect(function(A_1)
+    if Library.flags.Mod == true then
+        ModCheck(A_1)
+    end
+end)
+
+--// SilentAim Namecall \\--
+local OldNameCall = nil
+OldNameCall = hookmetamethod(game, "__namecall", function(Self, ...)
+    local Args = {...}
+    local NamecallMethod = getnamecallmethod()
+    if NamecallMethod == "FireServer" and Args[1] == "Fire" and Library.flags.SilentAim then
+        local Target = SilentAimTarget()
+        if Target ~= false then
+            Args[2] = Target
+        end
+    end
+    return OldNameCall(Self, unpack(Args))
+end)
+
+--// Local character \\--
+function LocalChar(Char)
+    -- Inf Consumable & Auto-Dumbell
+    Char.ChildAdded:Connect(function(A_1)
+        if A_1.Name == "Dumbell" then
+            while Library.flags.Dumbell and A_1.Parent == Char do
+                A_1:Activate()
+                A_1:Deactivate()
+                wait()
+            end       
+        elseif Library.flags.Consume == true and A_1:IsA("Tool") then
+            -- Make consumable infinite
+            local Useless = A_1:FindFirstChild("ThrowAfterDone")
+            if Useless and Useless.Value == true then
+                wait()
+                Useless:Destroy()
+            end
+            -- Wait for use or unequip
+            while A_1.Parent == Char and Library.flags.Consume == true do
+                wait(0.1)
+            end
+            -- Fix sprinting
+            if Library.flags.Consume == true then
+                wait(0.2)
+                setupvalue(RegWalkStuff, 1, true)
+            end
+        end
+    end)
+    -- Get New Funcs
+    local Old_AddStamina = AddStamina
+    local Old_RegWalkStuff = RegWalkStuff
+    while (Old_AddStamina == AddStamina or Old_RegWalkStuff == RegWalkStuff) and task.wait(1) do
+        UpdateFuncs()
+    end
+    -- Infinite Energy
+    if Library.flags.Energy == true then
+        setupvalue(AddStamina, 1, math.huge)
+    end
+end
+task.spawn(function()
+    LocalChar(Player.Character)
+end)
+Player.CharacterAdded:Connect(LocalChar)
